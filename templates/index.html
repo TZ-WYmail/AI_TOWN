@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI小镇 - 科幻控制中心</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&display=swap');
+        
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+        }
+        
+        body { 
+            font-family: 'Orbitron', monospace; 
+            background: #000;
+            color: #00ffff; 
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        /* 动态背景效果 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 0, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(0, 255, 128, 0.1) 0%, transparent 50%);
+            z-index: -2;
+        }
+        
+        /* 网格背景 */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+            animation: grid-move 10s linear infinite;
+        }
+        
+        @keyframes grid-move {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+        
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            position: relative;
+            z-index: 1;
+        }
+        
+        header { 
+            text-align: center; 
+            padding: 40px 0; 
+            position: relative;
+        }
+        
+        h1 { 
+            font-size: 3.5rem; 
+            margin-bottom: 15px; 
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            background: linear-gradient(45deg, #00ffff, #ff00ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+        
+        @keyframes glow {
+            from { filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.8)); }
+            to { filter: drop-shadow(0 0 20px rgba(255, 0, 255, 0.8)); }
+        }
+        
+        .subtitle { 
+            font-size: 1.3rem; 
+            opacity: 0.9; 
+            color: #00ff88;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        
+        .main-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid rgba(0, 255, 255, 0.2);
+        }
+        
+        .main-tab {
+            padding: 15px 30px;
+            cursor: pointer;
+            background: rgba(0, 20, 40, 0.6);
+            border: 2px solid transparent;
+            border-bottom: none;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            margin: 0 5px;
+        }
+        
+        .main-tab:hover {
+            background: rgba(0, 40, 80, 0.8);
+            border-color: rgba(0, 255, 255, 0.3);
+        }
+        
+        .main-tab.active {
+            background: rgba(0, 40, 80, 0.8);
+            border-color: rgba(0, 255, 255, 0.5);
+            color: #00ffff;
+            box-shadow: 0 -5px 15px rgba(0, 255, 255, 0.2);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .dashboard { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 30px; 
+            margin-top: 40px; 
+        }
+        
+        .panel { 
+            background: rgba(0, 20, 40, 0.8);
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            border-radius: 15px; 
+            padding: 30px; 
+            box-shadow: 
+                0 0 30px rgba(0, 255, 255, 0.2),
+                inset 0 0 20px rgba(0, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .panel::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #00ffff, #ff00ff, #00ff88, #00ffff);
+            border-radius: 15px;
+            z-index: -1;
+            opacity: 0.5;
+            animation: border-rotate 4s linear infinite;
+        }
+        
+        @keyframes border-rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        h2 { 
+            margin-bottom: 25px; 
+            padding-bottom: 15px; 
+            border-bottom: 2px solid rgba(0, 255, 255, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #00ffff;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+        }
+        
+        .form-group { 
+            margin-bottom: 25px; 
+        }
+        
+        label { 
+            display: block; 
+            margin-bottom: 10px; 
+            font-weight: 500;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.9rem;
+        }
+        
+        input, textarea, select { 
+            width: 100%; 
+            padding: 15px; 
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            border-radius: 8px; 
+            background: rgba(0, 20, 40, 0.6);
+            color: #00ffff; 
+            font-size: 1rem;
+            font-family: 'Orbitron', monospace;
+            transition: all 0.3s ease;
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #00ffff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+            background: rgba(0, 30, 60, 0.8);
+        }
+        
+        input::placeholder, textarea::placeholder { 
+            color: rgba(0, 255, 255, 0.4); 
+        }
+        
+        input[type="checkbox"] { 
+            width: auto; 
+            margin-right: 10px;
+            accent-color: #00ffff;
+        }
+        
+        .checkbox-group { 
+            display: flex; 
+            align-items: center; 
+        }
+        
+        button { 
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            color: #000; 
+            border: none; 
+            padding: 15px 30px; 
+            border-radius: 30px; 
+            font-size: 1rem; 
+            font-weight: 700; 
+            cursor: pointer; 
+            transition: all 0.3s ease; 
+            box-shadow: 0 4px 20px rgba(0, 255, 255, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-family: 'Orbitron', monospace;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.5s;
+        }
+        
+        button:hover::before {
+            left: 100%;
+        }
+        
+        button:hover { 
+            transform: translateY(-3px); 
+            box-shadow: 0 8px 25px rgba(0, 255, 255, 0.6);
+        }
+        
+        .story-list {
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .story-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .story-list::-webkit-scrollbar-track {
+            background: rgba(0, 20, 40, 0.6);
+            border-radius: 4px;
+        }
+        
+        .story-list::-webkit-scrollbar-thumb {
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            border-radius: 4px;
+        }
+        
+        .story-item {
+            background: rgba(0, 30, 60, 0.6);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .story-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+        }
+        
+        .story-item h3 {
+            margin-bottom: 15px;
+            color: #00ffff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .story-item p {
+            margin-bottom: 8px;
+            line-height: 1.6;
+            color: rgba(0, 255, 255, 0.9);
+        }
+        
+        .story-item strong {
+            color: #00ff88;
+        }
+        
+        .story-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(45deg, #ff4444, #ff6666);
+        }
+        
+        .notification { 
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            background: linear-gradient(45deg, rgba(0, 255, 136, 0.9), rgba(0, 255, 255, 0.9));
+            color: #000; 
+            padding: 20px 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 8px 25px rgba(0, 255, 255, 0.4);
+            transform: translateX(150%); 
+            transition: transform 0.3s ease; 
+            z-index: 1000;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .notification.show { 
+            transform: translateX(0); 
+        }
+        
+        .slider-container { 
+            display: flex; 
+            align-items: center; 
+        }
+        
+        .slider { 
+            flex: 1; 
+            margin: 0 15px;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 8px;
+            background: rgba(0, 20, 40, 0.6);
+            border-radius: 4px;
+            outline: none;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+        }
+        
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+        }
+        
+        .slider-value { 
+            min-width: 60px; 
+            text-align: center;
+            color: #00ff88;
+            font-weight: 700;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard { grid-template-columns: 1fr; }
+            h1 { font-size: 2.5rem; }
+            .container { padding: 15px; }
+        }
+        
+        /* 扫描线效果 */
+        .scanline {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #00ffff, transparent);
+            animation: scan 4s linear infinite;
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        @keyframes scan {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(100vh); }
+        }
+    </style>
+</head>
+<body>
+    <div class="scanline"></div>
+    <div class="container">
+        <header>
+            <h1>AI 小镇</h1>
+            <p class="subtitle">量子智能体交互系统 v2.0</p>
+        </header>
+        
+        <div class="main-tabs">
+            <div class="main-tab active" onclick="showMainTab('create')">创建故事</div>
+            <div class="main-tab" onclick="showMainTab('stories')">故事库</div>
+            <div class="main-tab" onclick="window.location.href='/llm_config'">LLM配置</div>
+        </div>
+
+        
+        <div id="create" class="tab-content active">
+            <div class="dashboard">
+                <div class="panel">
+                    <h2>系统配置</h2>
+                    <form action="/generate" method="post">
+                        <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="use_llm" name="use_llm"> 启用LLM智能生成
+                        </div>
+                    </div>
+
+                        <div class="form-group" id="llm_model_selection" style="display: none;">
+                            <label for="llm_model">选择模型</label>
+                            <select id="llm_model" name="llm_model">
+                                <option value="kimi-k2-turbo-preview">Kimi K2 Turbo</option>
+                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                <option value="gpt-4">GPT-4</option>
+                                <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                                <option value="gpt-4o">GPT-4o</option>
+                                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="scene_description">场景参数</label>
+                            <textarea id="scene_description" name="scene_description" rows="3" placeholder="输入场景描述...">{{ default_config.scene_description }}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="agent_count">智能体数量: <span id="agent_count_value">{{ default_config.agent_count }}</span></label>
+                            <div class="slider-container">
+                                <input type="range" id="agent_count" name="agent_count" min="1" max="10" value="{{ default_config.agent_count }}" class="slider">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="animation_speed">时间流速(ms): <span id="animation_speed_value">{{ default_config.animation_speed }}</span></label>
+                            <div class="slider-container">
+                                <input type="range" id="animation_speed" name="animation_speed" min="300" max="2000" step="100" value="{{ default_config.animation_speed }}" class="slider">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="auto_play" name="auto_play" {% if default_config.auto_play %}checked{% endif %}>
+                                <label for="auto_play">自动启动序列</label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="show_bubbles" name="show_bubbles" {% if default_config.show_bubbles %}checked{% endif %}>
+                                <label for="show_bubbles">显示通讯信号</label>
+                            </div>
+                        </div>
+                        
+                        <button type="submit">启动模拟</button>
+                    </form>
+                </div>
+                
+                <div class="panel">
+                    <h2>快速指南</h2>
+                    <div class="story-item">
+                        <h3>使用说明</h3>
+                        <p><strong>步骤1:</strong> 在左侧配置场景参数</p>
+                        <p><strong>步骤2:</strong> 设置智能体数量和动画速度</p>
+                        <p><strong>步骤3:</strong> 点击"启动模拟"生成故事</p>
+                        <p><strong>步骤4:</strong> 在模拟界面设置步数限制</p>
+                        <p><strong>步骤5:</strong> 观看智能体交互过程</p>
+                    </div>
+                    <div class="story-item">
+                        <h3>存储说明</h3>
+                        <p><strong>自动保存:</strong> 每个故事独立保存</p>
+                        <p><strong>命名规则:</strong> 场景描述前5个字符</p>
+                        <p><strong>存储位置:</strong> stories/文件夹</p>
+                        <p><strong>管理功能:</strong> 加载、删除、重新模拟</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="stories" class="tab-content">
+            <div class="panel">
+                <h2>故事库</h2>
+                <div class="story-list">
+                    {% if stories %}
+                        {% for story in stories %}
+                        <div class="story-item">
+                            <h3>{{ story.name }}</h3>
+                            <p><strong>场景:</strong> {{ story.description }}</p>
+                            <p><strong>智能体数量:</strong> {{ story.agent_count }}</p>
+                            <p><strong>创建时间:</strong> {{ story.created }}</p>
+                            <div class="story-actions">
+                                <button class="btn-small" onclick="loadStory('{{ story.name }}')">加载</button>
+                                <button class="btn-small btn-danger" onclick="deleteStory('{{ story.name }}')">删除</button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="story-item">
+                            <p>暂无保存的故事，请先创建新故事</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="notification" class="notification"></div>
+    
+    <script>
+        // 滑块值更新
+        document.getElementById('agent_count').addEventListener('input', function() {
+            document.getElementById('agent_count_value').textContent = this.value;
+        });
+        
+        document.getElementById('animation_speed').addEventListener('input', function() {
+            document.getElementById('animation_speed_value').textContent = this.value;
+        });
+        
+        // 主标签页切换
+        function showMainTab(tabName) {
+            // 隐藏所有标签内容
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(tab => tab.classList.remove('active'));
+            
+            // 移除所有标签的active类
+            const tabs = document.querySelectorAll('.main-tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // 显示选中的标签内容
+            document.getElementById(tabName).classList.add('active');
+            
+            // 添加active类到选中的标签
+            event.target.classList.add('active');
+        }
+        
+        // 加载故事
+        function loadStory(storyName) {
+            window.location.href = `/load/${storyName}`;
+        }
+        
+        // 删除故事
+        function deleteStory(storyName) {
+            if (confirm(`确定要删除故事 "${storyName}" 吗？此操作不可恢复。`)) {
+                fetch(`/delete/${storyName}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showNotification('故事已删除');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } else {
+                        showNotification('删除失败', 'error');
+                    }
+                })
+                .catch(error => {
+                    showNotification('删除失败', 'error');
+                });
+            }
+        }
+        // 在index.html的JavaScript部分添加
+        document.getElementById('use_llm').addEventListener('change', function() {
+            const modelSelection = document.getElementById('llm_model_selection');
+            if (this.checked) {
+                modelSelection.style.display = 'block';
+            } else {
+                modelSelection.style.display = 'none';
+            }
+        });
+
+        
+        // 通知函数
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.background = type === 'success' ? 
+                'linear-gradient(45deg, rgba(0, 255, 136, 0.9), rgba(0, 255, 255, 0.9))' : 
+                'linear-gradient(45deg, rgba(255, 0, 0, 0.9), rgba(255, 100, 0, 0.9))';
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 表单提交通知
+        document.querySelector('form').addEventListener('submit', function() {
+            showNotification('系统配置已保存，正在初始化量子模拟...');
+        });
+        
+        // 添加一些科幻音效的视觉反馈
+        document.querySelectorAll('input, textarea, select').forEach(element => {
+            element.addEventListener('focus', function() {
+                this.style.boxShadow = '0 0 20px rgba(0, 255, 255, 0.8)';
+            });
+            
+            element.addEventListener('blur', function() {
+                this.style.boxShadow = 'none';
+            });
+        });
+    </script>
+</body>
+</html>

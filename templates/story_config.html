@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI小镇 - 故事配置</title>
+    <style>
+        /* 使用与index.html相同的科幻风格 */
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&display=swap');
+        
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+        }
+        
+        body { 
+            font-family: 'Orbitron', monospace; 
+            background: #000;
+            color: #00ffff; 
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        /* 复用科幻背景效果 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 0, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(0, 255, 128, 0.1) 0%, transparent 50%);
+            z-index: -2;
+        }
+        
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+            animation: grid-move 10s linear infinite;
+        }
+        
+        @keyframes grid-move {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+        
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            position: relative;
+            z-index: 1;
+        }
+        
+        .panel { 
+            background: rgba(0, 20, 40, 0.8);
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            border-radius: 15px; 
+            padding: 30px; 
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .panel::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #00ffff, #ff00ff, #00ff88, #00ffff);
+            border-radius: 15px;
+            z-index: -1;
+            opacity: 0.5;
+            animation: border-rotate 4s linear infinite;
+        }
+        
+        @keyframes border-rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        h1, h2 { 
+            color: #00ffff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+        
+        .form-group { 
+            margin-bottom: 20px; 
+        }
+        
+        label { 
+            display: block; 
+            margin-bottom: 10px; 
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        input, textarea, select { 
+            width: 100%; 
+            padding: 15px; 
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            border-radius: 8px; 
+            background: rgba(0, 20, 40, 0.6);
+            color: #00ffff; 
+            font-family: 'Orbitron', monospace;
+        }
+        
+        button { 
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            color: #000; 
+            border: none; 
+            padding: 15px 30px; 
+            border-radius: 30px; 
+            font-weight: 700; 
+            cursor: pointer; 
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-family: 'Orbitron', monospace;
+            margin: 10px;
+        }
+        
+        button:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 25px rgba(0, 255, 255, 0.6);
+        }
+        
+        .story-preview {
+            background: rgba(0, 30, 60, 0.6);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .scene-card {
+            background: rgba(0, 40, 80, 0.6);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        
+        .llm-status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            margin-left: 10px;
+        }
+        
+        .llm-enabled {
+            background: rgba(0, 255, 0, 0.2);
+            color: #00ff00;
+        }
+        
+        .llm-disabled {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff6666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="panel">
+            <h1>故事配置中心</h1>
+            
+            <div class="form-group">
+                <label for="scene_description">场景描述</label>
+                <textarea id="scene_description" rows="3" placeholder="描述你的故事场景...">A mysterious medieval castle with hidden chambers and ancient secrets</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="agent_count">角色数量</label>
+                <input type="number" id="agent_count" value="4" min="1" max="10">
+            </div>
+            
+            <div class="form-group">
+                <label for="use_llm">
+                    <input type="checkbox" id="use_llm"> 启用LLM智能生成
+                    <span id="llm_status" class="llm-status llm-disabled">未启用</span>
+                </label>
+            </div>
+            
+            <div class="form-group" id="llm_config" style="display: none;">
+                <label for="llm_model">LLM模型</label>
+                <select id="llm_model">
+                    <option value="kimi-k2-turbo-preview">Kimi K2 Turbo</option>
+                    <option value="gpt-4">GPT-4</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                </select>
+            </div>
+            
+            <button onclick="generateStory()">生成故事大纲</button>
+            <button onclick="startSimulation()">开始模拟</button>
+            <a href="/" class="button" style="text-decoration: none; display: inline-block;">返回主页</a>
+        </div>
+        
+        <div id="story_preview" class="story-preview" style="display: none;">
+            <h2>故事预览</h2>
+            <div id="story_content"></div>
+        </div>
+    </div>
+    
+    <script>
+        let storyData = null;
+        
+        document.getElementById('use_llm').addEventListener('change', function() {
+            const llmConfig = document.getElementById('llm_config');
+            const llmStatus = document.getElementById('llm_status');
+            
+            if (this.checked) {
+                llmConfig.style.display = 'block';
+                llmStatus.textContent = '已启用';
+                llmStatus.className = 'llm-status llm-enabled';
+            } else {
+                llmConfig.style.display = 'none';
+                llmStatus.textContent = '未启用';
+                llmStatus.className = 'llm-status llm-disabled';
+            }
+        });
+        
+        function generateStory() {
+            const sceneDescription = document.getElementById('scene_description').value;
+            const agentCount = parseInt(document.getElementById('agent_count').value);
+            const useLLM = document.getElementById('use_llm').checked;
+            const llmModel = document.getElementById('llm_model').value;
+            
+            fetch('/generate_story', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    scene_description: sceneDescription,
+                    agent_count: agentCount,
+                    use_llm: useLLM,
+                    llm_model: llmModel
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                storyData = data;
+                displayStoryPreview(data);
+            })
+            .catch(error => {
+                console.error('生成故事失败:', error);
+                alert('生成故事失败，请检查网络连接');
+            });
+        }
+        
+        function displayStoryPreview(data) {
+            const preview = document.getElementById('story_preview');
+            const content = document.getElementById('story_content');
+            
+            let html = `<h3>${data.outline.title}</h3>`;
+            
+            data.outline.scenes.forEach(scene => {
+                html += `
+                    <div class="scene-card">
+                        <h4>${scene.name}</h4>
+                        <p><strong>描述:</strong> ${scene.description}</p>
+                        <p><strong>地图类型:</strong> ${scene.map_type}</p>
+                        <p><strong>房间数量:</strong> ${scene.rooms.length}</p>
+                    </div>
+                `;
+            });
+            
+            content.innerHTML = html;
+            preview.style.display = 'block';
+        }
+        
+        function startSimulation() {
+            if (!storyData) {
+                alert('请先生成故事大纲');
+                return;
+            }
+            
+            const sceneDescription = document.getElementById('scene_description').value;
+            const agentCount = parseInt(document.getElementById('agent_count').value);
+            const useLLM = document.getElementById('use_llm').checked;
+            
+            // 创建表单数据
+            const formData = new FormData();
+            formData.append('scene_description', sceneDescription);
+            formData.append('agent_count', agentCount);
+            formData.append('auto_play', 'on');
+            formData.append('show_bubbles', 'on');
+            formData.append('animation_speed', '900');
+            
+            // 提交到生成页面
+            fetch('/generate', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                document.open();
+                document.write(html);
+                document.close();
+            })
+            .catch(error => {
+                console.error('启动模拟失败:', error);
+                alert('启动模拟失败');
+            });
+        }
+    </script>
+</body>
+</html>

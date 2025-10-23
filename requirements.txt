@@ -1,0 +1,31 @@
+# Web框架
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# LLM API客户端
+openai==1.3.7
+google-generativeai==0.3.2
+
+# 数据处理
+numpy==1.24.3
+pandas==2.0.3
+
+# HTTP请求
+requests==2.31.0
+
+# 正则表达式增强
+regex==2023.10.3
+
+# JSON处理增强
+ujson==5.8.0
+
+# 时间处理
+python-dateutil==2.8.2
+
+# 开发工具
+pytest==7.4.3
+black==23.11.0
+flake8==6.1.0
+
+# 可选：性能监控
+psutil==5.9.6
