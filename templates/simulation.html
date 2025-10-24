@@ -697,6 +697,75 @@
                 opacity: 0;
             }
         }
+           /* 模态框背景 */
+    .modal {
+        display: none; /* 默认隐藏 */
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0, 0, 0, 0.8);
+        animation: fadeIn 0.3s;
+    }
+
+    /* 模态框内容 */
+    .modal-content {
+        background: rgba(0, 20, 40, 0.95);
+        border: 2px solid rgba(0, 255, 255, 0.5);
+        margin: 10% auto;
+        padding: 30px;
+        border-radius: 15px;
+        width: 60%;
+        min-width: 400px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+        position: relative;
+    }
+
+    /* 关闭按钮 */
+    .close-btn {
+        color: #aaa;
+        position: absolute;
+        top: 15px;
+        right: 25px;
+        font-size: 35px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: color 0.3s;
+    }
+
+    .close-btn:hover,
+    .close-btn:focus {
+        color: #00ffff;
+    }
+
+    /* 模态框内信息样式 */
+    #modal-agent-body p {
+        margin-bottom: 12px;
+        line-height: 1.6;
+    }
+    
+    #modal-agent-body strong {
+        color: #00ff88;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin-top: 20px;
+    }
+
+    .info-item {
+        background: rgba(0, 30, 60, 0.6);
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid rgba(0, 255, 255, 0.2);
+    }
 
     </style>
 </head>
@@ -726,6 +795,18 @@
             <button id="speedBtn">时序: 1x</button>
              <button id="resetBtn">重置</button>  <!-- 添加这个按钮 -->
             <button id="resimulateBtn">重新模拟</button>
+        </div>
+                <!-- 新增：导演信息面板 -->
+        <div class="data-panel" id="director-panel" >
+            <h2>导演日志</h2>
+            <div class="data-card">
+                <h3>当前剧情</h3>
+                <p id="narrative-summary">等待导演就绪...</p>
+            </div>
+            <div class="data-card">
+                <h3>计划进度</h3>
+                <p id="plan-progress">等待计划...</p>
+            </div>
         </div>
         
         <!-- 添加大纲显示区域 -->
@@ -862,6 +943,7 @@
         let speedMultiplier = 1;
         let agents = {};
         let timelineEvents = [];
+        let currentNarrative = "等待导演就绪..."; // 新增
 
         // 地图渲染函数 - 完整版本
         function renderMap() {
@@ -1086,7 +1168,7 @@
                     const toRoomElement = roomElements.find(r => r.room.id === path.to);
                     
                     if (fromRoomElement && toRoomElement) {
-                        renderSinglePath(fromRoomElement, toRoomElement, path, pathIndex++);
+                        renderPath(fromRoomElement, toRoomElement, path, pathIndex++);
                     } else {
                         console.warn(`路径 ${index} 找不到对应的房间:`, path);
                     }
@@ -1104,7 +1186,7 @@
                                 const pathKey = [room.id, connectedRoomData.room.id].sort().join('-');
                                 if (!window.renderedPaths.has(pathKey)) {
                                     window.renderedPaths.add(pathKey);
-                                    renderSinglePath(roomData, connectedRoomData, { 
+                                    renderPath(roomData, connectedRoomData, { 
                                         connection_type: 'door',
                                         from: room.id,
                                         to: connectionId
@@ -1168,147 +1250,148 @@
 
         // 渲染路径函数 - 重写版本
         function renderPath(fromRoom, toRoom, pathData, index) {
-            // 确保地图容器存在
-            if (!mapContainer) {
-                console.error('地图容器不存在，无法渲染路径');
-                return;
+            try {
+                // 确保地图容器存在
+                if (!mapContainer) {
+                    console.error('地图容器不存在，无法渲染路径');
+                    return;
+                }
+                
+                // 获取实际的房间元素
+                const fromRoomElement = mapContainer.querySelector(`[data-room-id="${fromRoom.id}"]`) ||
+                                    mapContainer.querySelector(`[data-room-id="${fromRoom.id || 'room_0'}"]`);
+                
+                const toRoomElement = mapContainer.querySelector(`[data-room-id="${toRoom.id}"]`) ||
+                                    mapContainer.querySelector(`[data-room-id="${toRoom.id || 'room_0'}"]`);
+                
+                if (!fromRoomElement || !toRoomElement) {
+                    console.warn('无法找到房间元素，跳过路径渲染');
+                    return;
+                }
+                
+                // 获取房间元素的实际位置和尺寸
+                const fromRect = fromRoomElement.getBoundingClientRect();
+                const toRect = toRoomElement.getBoundingClientRect();
+                const containerRect = mapContainer.getBoundingClientRect();
+                
+                // 计算相对于地图容器的坐标
+                const fromX = fromRect.left - containerRect.left + fromRect.width / 2;
+                const fromY = fromRect.top - containerRect.top + fromRect.height / 2;
+                const toX = toRect.left - containerRect.left + toRect.width / 2;
+                const toY = toRect.top - containerRect.top + toRect.height / 2;
+                
+                // 计算连线的长度和角度
+                const deltaX = toX - fromX;
+                const deltaY = toY - fromY;
+                const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                const angle = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
+                
+                // 创建路径组容器
+                const pathGroup = document.createElement('div');
+                pathGroup.className = 'path-group';
+                pathGroup.dataset.pathId = `path_${index}`;
+                pathGroup.style.cssText = `
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    pointer-events: none;
+                    z-index: 0;
+                `;
+                
+                // 创建主路径线
+                const pathElement = document.createElement('div');
+                pathElement.className = 'path-element';
+                pathElement.style.cssText = `
+                    position: absolute;
+                    left: ${fromX}px;
+                    top: ${fromY}px;
+                    width: ${length}px;
+                    height: 5px;
+                    background: linear-gradient(90deg, 
+                        rgba(255, 100, 0, 0.9) 0%, 
+                        rgba(255, 200, 0, 0.7) 25%,
+                        rgba(255, 255, 0, 0.8) 50%,
+                        rgba(255, 200, 0, 0.7) 75%,
+                        rgba(255, 100, 0, 0.9) 100%);
+                    transform-origin: 0 50%;
+                    transform: rotate(${angle}deg);
+                    z-index: 1;
+                    box-shadow: 
+                        0 0 15px rgba(255, 200, 0, 0.8),
+                        0 0 30px rgba(255, 150, 0, 0.6);
+                    animation: pathPulse 2s ease-in-out infinite;
+                    animation-delay: ${index * 0.3}s;
+                `;
+                
+                // 创建起点端点
+                const fromPoint = document.createElement('div');
+                fromPoint.className = 'path-point path-point-start';
+                fromPoint.style.cssText = `
+                    position: absolute;
+                    left: ${fromX - 8}px;
+                    top: ${fromY - 8}px;
+                    width: 16px;
+                    height: 16px;
+                    background: radial-gradient(circle, rgba(255, 255, 0, 1) 0%, rgba(255, 200, 0, 0.8) 100%);
+                    border-radius: 50%;
+                    z-index: 3;
+                    box-shadow: 
+                        0 0 20px rgba(255, 255, 0, 0.9),
+                        0 0 40px rgba(255, 200, 0, 0.7);
+                    animation: pointPulse 1.5s ease-in-out infinite;
+                    animation-delay: ${index * 0.3}s;
+                `;
+                
+                // 创建终点端点
+                const toPoint = document.createElement('div');
+                toPoint.className = 'path-point path-point-end';
+                toPoint.style.cssText = `
+                    position: absolute;
+                    left: ${toX - 8}px;
+                    top: ${toY - 8}px;
+                    width: 16px;
+                    height: 16px;
+                    background: radial-gradient(circle, rgba(255, 100, 0, 1) 0%, rgba(255, 50, 0, 0.8) 100%);
+                    border-radius: 50%;
+                    z-index: 3;
+                    box-shadow: 
+                        0 0 20px rgba(255, 100, 0, 0.9),
+                        0 0 40px rgba(255, 50, 0, 0.7);
+                    animation: pointPulse 1.5s ease-in-out infinite 0.5s;
+                    animation-delay: ${index * 0.3 + 0.5}s;
+                `;
+                
+                // 添加所有元素到路径组
+                pathGroup.appendChild(pathElement);
+                pathGroup.appendChild(fromPoint);
+                pathGroup.appendChild(toPoint);
+                
+                // 添加到地图容器
+                mapContainer.appendChild(pathGroup);
+                
+                // 添加交互效果
+                pathGroup.addEventListener('mouseenter', function() {
+                    pathElement.style.height = '8px';
+                    pathElement.style.filter = 'brightness(1.3)';
+                    fromPoint.style.transform = 'scale(1.5)';
+                    toPoint.style.transform = 'scale(1.5)';
+                });
+                
+                pathGroup.addEventListener('mouseleave', function() {
+                    pathElement.style.height = '5px';
+                    pathElement.style.filter = 'brightness(1)';
+                    fromPoint.style.transform = 'scale(1)';
+                    toPoint.style.transform = 'scale(1)';
+                });
+                
+                console.log(`路径 ${index} 渲染完成: ${fromRoom.name || '房间'} -> ${toRoom.name || '房间'}`);
+            } catch (error) {
+                console.error('渲染路径时出错:', error);
             }
-            
-            // 获取实际的房间元素
-            const fromRoomElement = mapContainer.querySelector(`[data-room-id="${fromRoom.id || 'room_0'}"]`) ||
-                                mapContainer.querySelector(`[data-room-id="${fromRoom.id || 'room_1'}"]`) ||
-                                mapContainer.querySelector(`[data-room-id="${fromRoom.id || 'room_2'}"]`) ||
-                                mapContainer.querySelector(`[data-room-id="${fromRoom.id || 'room_3'}"]`);
-            
-            const toRoomElement = mapContainer.querySelector(`[data-room-id="${toRoom.id || 'room_0'}"]`) ||
-                                mapContainer.querySelector(`[data-room-id="${toRoom.id || 'room_1'}"]`) ||
-                                mapContainer.querySelector(`[data-room-id="${toRoom.id || 'room_2'}"]`) ||
-                                mapContainer.querySelector(`[data-room-id="${toRoom.id || 'room_3'}"]`);
-            
-            if (!fromRoomElement || !toRoomElement) {
-                console.warn('无法找到房间元素，跳过路径渲染');
-                return;
-            }
-            
-            // 获取房间元素的实际位置和尺寸
-            const fromRect = fromRoomElement.getBoundingClientRect();
-            const toRect = toRoomElement.getBoundingClientRect();
-            const containerRect = mapContainer.getBoundingClientRect();
-            
-            // 计算相对于地图容器的坐标
-            const fromX = fromRect.left - containerRect.left + fromRect.width / 2;
-            const fromY = fromRect.top - containerRect.top + fromRect.height / 2;
-            const toX = toRect.left - containerRect.left + toRect.width / 2;
-            const toY = toRect.top - containerRect.top + toRect.height / 2;
-            
-            // 计算连线的长度和角度
-            const deltaX = toX - fromX;
-            const deltaY = toY - fromY;
-            const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-            const angle = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
-            
-            // 创建路径组容器
-            const pathGroup = document.createElement('div');
-            pathGroup.className = 'path-group';
-            pathGroup.dataset.pathId = `path_${index}`;
-            pathGroup.style.cssText = `
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                pointer-events: none;
-                z-index: 0;
-            `;
-            
-            // 创建主路径线
-            const pathElement = document.createElement('div');
-            pathElement.className = 'path-element';
-            pathElement.style.cssText = `
-                position: absolute;
-                left: ${fromX}px;
-                top: ${fromY}px;
-                width: ${length}px;
-                height: 5px;
-                background: linear-gradient(90deg, 
-                    rgba(255, 100, 0, 0.9) 0%, 
-                    rgba(255, 200, 0, 0.7) 25%,
-                    rgba(255, 255, 0, 0.8) 50%,
-                    rgba(255, 200, 0, 0.7) 75%,
-                    rgba(255, 100, 0, 0.9) 100%);
-                transform-origin: 0 50%;
-                transform: rotate(${angle}deg);
-                z-index: 1;
-                box-shadow: 
-                    0 0 15px rgba(255, 200, 0, 0.8),
-                    0 0 30px rgba(255, 150, 0, 0.6);
-                animation: pathPulse 2s ease-in-out infinite;
-                animation-delay: ${index * 0.3}s;
-            `;
-            
-            // 创建起点端点
-            const fromPoint = document.createElement('div');
-            fromPoint.className = 'path-point path-point-start';
-            fromPoint.style.cssText = `
-                position: absolute;
-                left: ${fromX - 8}px;
-                top: ${fromY - 8}px;
-                width: 16px;
-                height: 16px;
-                background: radial-gradient(circle, rgba(255, 255, 0, 1) 0%, rgba(255, 200, 0, 0.8) 100%);
-                border-radius: 50%;
-                z-index: 3;
-                box-shadow: 
-                    0 0 20px rgba(255, 255, 0, 0.9),
-                    0 0 40px rgba(255, 200, 0, 0.7);
-                animation: pointPulse 1.5s ease-in-out infinite;
-                animation-delay: ${index * 0.3}s;
-            `;
-            
-            // 创建终点端点
-            const toPoint = document.createElement('div');
-            toPoint.className = 'path-point path-point-end';
-            toPoint.style.cssText = `
-                position: absolute;
-                left: ${toX - 8}px;
-                top: ${toY - 8}px;
-                width: 16px;
-                height: 16px;
-                background: radial-gradient(circle, rgba(255, 100, 0, 1) 0%, rgba(255, 50, 0, 0.8) 100%);
-                border-radius: 50%;
-                z-index: 3;
-                box-shadow: 
-                    0 0 20px rgba(255, 100, 0, 0.9),
-                    0 0 40px rgba(255, 50, 0, 0.7);
-                animation: pointPulse 1.5s ease-in-out infinite 0.5s;
-                animation-delay: ${index * 0.3 + 0.5}s;
-            `;
-            
-            // 添加所有元素到路径组
-            pathGroup.appendChild(pathElement);
-            pathGroup.appendChild(fromPoint);
-            pathGroup.appendChild(toPoint);
-            
-            // 添加到地图容器
-            mapContainer.appendChild(pathGroup);
-            
-            // 添加交互效果
-            pathGroup.addEventListener('mouseenter', function() {
-                pathElement.style.height = '8px';
-                pathElement.style.filter = 'brightness(1.3)';
-                fromPoint.style.transform = 'scale(1.5)';
-                toPoint.style.transform = 'scale(1.5)';
-            });
-            
-            pathGroup.addEventListener('mouseleave', function() {
-                pathElement.style.height = '5px';
-                pathElement.style.filter = 'brightness(1)';
-                fromPoint.style.transform = 'scale(1)';
-                toPoint.style.transform = 'scale(1)';
-            });
-            
-            console.log(`路径 ${index} 渲染完成: ${fromRoom.name || '房间'} -> ${toRoom.name || '房间'}`);
         }
+
 
 
 
@@ -1634,59 +1717,232 @@
         }
 
         // 执行单步
-        function executeStep() {
-            stepBtn.disabled = true;
-            stepBtn.textContent = '执行中...';
-            
-            fetch('/api/simulate_step', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    story_name: STORY_NAME
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    currentStep++;
-                    updateDisplay(data.data);
-                    highlightCurrentEvent(currentStep);
-                    
-                    // 检查是否达到步数限制
-                    const stepsLimit = parseInt(stepsLimitInput.value);
-                    if (currentStep >= stepsLimit) {
-                        pauseTimeline();
-                        showNotification('模拟完成！', 'success');
-                    }
-                } else {
-                    showNotification('执行失败: ' + (data.message || '未知错误'), 'error');
+        /**
+ * 执行单步模拟
+ * 这个函数现在处理两种情况：
+ * 1. 手动点击“单步执行”。
+ * 2. 自动播放模式下，由 playInterval 调用。
+ * 它会持续请求后端，直到一个完整的“导演计划”执行完毕。
+ */
+        // 在 simulation.html 中修改API调用
+
+// 确保所有API调用使用正确的URL
+function executeStep() {
+    if (stepBtn.disabled) {
+        return;
+    }
+
+    stepBtn.disabled = true;
+    stepBtn.textContent = '执行中...';
+
+    fetch('/api/simulate_step', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            story_name: STORY_NAME
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            const stepData = data.data;
+            currentStep = stepData.step;
+            updateDisplay(stepData);
+            highlightCurrentEvent(currentStep);
+
+            const stepsLimit = parseInt(stepsLimitInput.value);
+            if (currentStep >= stepsLimit) {
+                pauseTimeline();
+                showNotification('模拟完成！', 'success');
+            } else {
+                if (isPlaying && stepData.status === 'running' && 
+                    stepData.plan_progress && !stepData.plan_progress.endsWith('/1')) {
+                    setTimeout(executeStep, 100);
                 }
-            })
-            .catch(error => {
-                console.error('执行失败:', error);
-                showNotification('执行失败: ' + error.message, 'error');
-            })
-            .finally(() => {
-                stepBtn.disabled = false;
-                stepBtn.textContent = '单步执行';
-            });
+            }
+        } else {
+            showNotification('执行失败: ' + (data.message || '未知错误'), 'error');
+            if (isPlaying) {
+                pauseTimeline();
+            }
         }
+    })
+    .catch(error => {
+        console.error('执行失败:', error);
+        showNotification('执行失败: ' + error.message, 'error');
+        if (isPlaying) {
+            pauseTimeline();
+        }
+    })
+    .finally(() => {
+        if (!isPlaying || (data && data.data && data.data.plan_progress && 
+            data.data.plan_progress.endsWith('/1'))) {
+            stepBtn.disabled = false;
+            stepBtn.textContent = '单步执行';
+        }
+    });
+}
+
+
 
         // 更新显示
         function updateDisplay(stepData) {
-            // 更新智能体位置
-            if (stepData.agent_update) {
-                updateAgentPosition(stepData.agent_update);
-            }
-            
-            // 添加时间线事件
-            addTimelineEvent(stepData);
-            
-            // 更新进度
-            updateProgress();
+        if (stepData.agent_update) {
+            updateAgentPosition(stepData.agent_update);
         }
+        
+        // 更新导演面板
+        updateDirectorPanel(stepData);
+
+        addTimelineEvent(stepData);
+        updateProgress();
+        }
+        function updateDirectorPanel(stepData) {
+        const directorPanel = document.getElementById('director-panel');
+        const narrativeSummary = document.getElementById('narrative-summary');
+        const planProgress = document.getElementById('plan-progress');
+
+        // 确保面板可见
+        directorPanel.style.display = 'block';
+
+        // 这里我们假设后端会返回 narrative_summary
+        // 如果没有，我们可以根据action生成一个简单的描述
+        if (stepData.narrative_summary) {
+            currentNarrative = stepData.narrative_summary;
+        } else if (stepData.agent_update && stepData.agent_update.action) {
+            const action = stepData.agent_update.action;
+            const agentName = DATA.agents[stepData.agent_update.agent_id].name;
+            currentNarrative = `${agentName} 正在执行 "${action.action_type}"。`;
+        }
+        
+        narrativeSummary.textContent = currentNarrative;
+        planProgress.textContent = stepData.plan_progress || '计算中...';
+    }
+
+    // 新增：处理Agent卡片点击事件
+    function setupAgentCardListeners() {
+        const agentCards = document.querySelectorAll('#agents .data-card');
+        agentCards.forEach(card => {
+            card.style.cursor = 'pointer'; // 鼠标悬停时显示手型
+            card.addEventListener('click', function() {
+                // 从卡片中提取agent ID
+                const agentIdText = this.querySelector('p').textContent;
+                const agentId = parseInt(agentIdText.match(/ID:\s*(\d+)/)[1]);
+                showAgentModal(agentId);
+            });
+        });
+    }
+
+    // 新增：显示Agent详情弹窗
+    // 修改 showAgentModal 函数
+function showAgentModal(agentId) {
+    const modal = document.getElementById('agent-modal');
+    const modalName = document.getElementById('modal-agent-name');
+    const modalBody = document.getElementById('modal-agent-body');
+
+    // 显示加载状态
+    modalName.textContent = '加载中...';
+    modalBody.innerHTML = '<p>正在获取智能体状态...</p>';
+    modal.style.display = 'block';
+
+    // 从后端获取最新的agent状态
+    fetch('/api/simulate_step', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            story_name: STORY_NAME, 
+            get_state_only: true 
+        })
+    })
+    .then(response => {
+        console.log('响应状态:', response.status);
+        console.log('响应头:', response.headers);
+        
+        if (!response.ok) {
+            // 如果响应不是200，尝试获取错误信息
+            return response.text().then(text => {
+                console.error('服务器返回错误:', text);
+                throw new Error(`HTTP ${response.status}: ${text}`);
+            });
+        }
+        
+        // 检查响应内容类型
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            return response.text().then(text => {
+                console.error('非JSON响应:', text);
+                throw new Error('服务器返回了非JSON响应');
+            });
+        }
+    })
+    .then(data => {
+        if (data.status === 'success') {
+            const agentState = data.current_state.agent_states.find(a => a.id === agentId);
+            if (agentState) {
+                modalName.textContent = `${agentState.name} (ID:${agentState.id})`;
+                
+                let bodyHTML = `
+                    <p><strong>性格:</strong> ${agentState.personality.join(', ')}</p>
+                    <p><strong>目标:</strong> ${agentState.goal}</p>
+                    <p><strong>当前位置:</strong> (${agentState.position.x},${agentState.position.y})</p>
+                    <p><strong>所在房间:</strong> ${agentState.current_room || '未知'}</p>
+                    <p><strong>心情:</strong> ${agentState.mood}</p>
+                    <p><strong>能量:</strong> ${agentState.energy}</p>
+                    <p><strong>物品:</strong> ${agentState.inventory.length > 0 ? agentState.inventory.join(', ') : '无'}</p>
+                `;
+                
+                // 记忆和关系
+                const memoryList = agentState.memory.length > 0 ? 
+                    agentState.memory.map(m => `- ${m.content}`).join('<br>') : '无';
+                const relationshipList = Object.keys(agentState.relationships).length > 0 ? 
+                    Object.entries(agentState.relationships).map(([id, val]) => `- Agent ${id}:${val}`).join('<br>') : '无';
+
+                bodyHTML += `
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <h4>最近记忆</h4>
+                            <p>${memoryList}</p>
+                        </div>
+                        <div class="info-item">
+                            <h4>人际关系</h4>
+                            <p>${relationshipList}</p>
+                        </div>
+                    </div>
+                `;
+                
+                modalBody.innerHTML = bodyHTML;
+            } else {
+                modalName.textContent = '错误';
+                modalBody.innerHTML = '<p>未找到指定的智能体</p>';
+            }
+        } else {
+            modalName.textContent = '错误';
+            modalBody.innerHTML = `<p>获取状态失败: ${data.message}</p>`;
+        }
+    })
+    .catch(error => {
+        console.error('获取智能体状态失败:', error);
+        modalName.textContent = '错误';
+        modalBody.innerHTML = `
+            <p>获取智能体状态失败</p>
+            <p><strong>错误信息:</strong> ${error.message}</p>
+            <button onclick="showAgentModal(${agentId})" style="margin-top: 10px; padding: 5px 10px;">重试</button>
+        `;
+    });
+}
+
+    // 点击弹窗外部关闭
+    window.onclick = function(event) {
+        const modal = document.getElementById('agent-modal');
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    }
+
 
         // 播放时间线
         function playTimeline() {
@@ -1865,50 +2121,61 @@
     // ==================== 页面初始化 ====================
     // 放在所有函数定义之后
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('页面加载完成，开始初始化...');
-        
-        // 检查必要的元素是否存在
-        const mapContainer = document.getElementById('map-container');
-        const stage = document.getElementById('stage');
-        
-        if (!mapContainer) {
-            console.error('地图容器未找到');
-            return;
-        }
-        
-        if (!stage) {
-            console.error('舞台容器未找到');
-            return;
-        }
-        
-        // 延迟初始化确保所有资源加载完成
-        setTimeout(() => {
-            try {
-                console.log('开始渲染地图...');
-                renderMap();
-                
-                console.log('开始渲染智能体...');
-                renderAgents();
-
-                console.log('开始渲染路径...');
-                renderPaths();
-                
-                console.log('启动粒子效果...');
-                if (typeof createParticle === 'function') {
-                    setInterval(createParticle, 500);
-                }
-                
-                console.log('初始化完成');
-                
-                // 显示欢迎通知
-                showNotification('AI小镇模拟系统已就绪', 'success');
-                
-            } catch (error) {
-                console.error('初始化过程中发生错误:', error);
-                showNotification('初始化失败: ' + error.message, 'error');
+            console.log('页面加载完成，开始初始化...');
+            
+            // 添加模态框关闭按钮事件监听
+            const closeBtn = document.querySelector('.close-btn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function() {
+                    document.getElementById('agent-modal').style.display = 'none';
+                });
+            } else {
+                console.error('未找到模态框关闭按钮');
             }
-        }, 200); // 增加延迟时间确保完全加载
-    });
+            
+            // 检查必要的元素是否存在
+            if (!mapContainer) {
+                console.error('地图容器未找到');
+                return;
+            }
+            
+            if (!stage) {
+                console.error('舞台容器未找到');
+                return;
+            }
+            
+            // 延迟初始化确保所有资源加载完成
+            setTimeout(() => {
+                try {
+                    console.log('开始渲染地图...');
+                    renderMap();
+                    
+                    console.log('开始渲染智能体...');
+                    renderAgents();
+                    setupAgentCardListeners();
+
+                    console.log('初始化完成');
+                    
+                    // 显示欢迎通知
+                    showNotification('AI小镇模拟系统已就绪', 'success');
+                    
+                } catch (error) {
+                    console.error('初始化过程中发生错误:', error);
+                    showNotification('初始化失败: ' + error.message, 'error');
+                }
+            }, 300); // 增加延迟时间确保完全加载
+        });
+
     </script>
 </body>
+<!-- 在 <body> 标签末尾，添加弹窗HTML结构 -->
+<div id="agent-modal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn">&times;</span>
+        <h2 id="modal-agent-name">智能体详情</h2>
+        <div id="modal-agent-body">
+            <!-- 详细信息将通过JS动态填充 -->
+        </div>
+    </div>
+</div>
 </html>

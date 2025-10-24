@@ -3,29 +3,29 @@ import random
 import time
 from typing import Dict, List, Optional
 from agent_state_manager import AgentStateManager
+from story_director import StoryDirector
 from story_outline_generator import StoryOutlineGenerator
 
 class Simulator:
-    # 类变量，存储每个故事的模拟器实例（单例模式）
     _instances = {}
     
     def __init__(self):
         self.agent_manager = AgentStateManager()
         self.outline_generator = StoryOutlineGenerator()
+        self.story_director = StoryDirector() # 实例化导演
         self.current_step = 0
         self.story_outline = None
         self.event_history = []
-        self.story_name = None  # 添加故事名标识
+        self.story_name = None
+        self.current_narrative_summary = "等待导演就绪..." # 新增：存储当前剧情摘要
         
     @classmethod
     def get_instance(cls, story_name: str):
-        """获取或创建指定故事的模拟器实例"""
         if story_name not in cls._instances:
             cls._instances[story_name] = Simulator()
         return cls._instances[story_name]
     
     def initialize_simulation(self, scene_data: Dict, max_steps: int = 100):
-        """初始化模拟"""
         self.story_name = scene_data.get("story_name", "default")
         self.story_outline = scene_data.get("outline", {})
         self.scene = scene_data.get("scene", {})
@@ -33,11 +33,9 @@ class Simulator:
         self.max_steps = max_steps
         self.current_step = 0
         self.event_history.clear()
+        self.current_narrative_summary = "等待导演就绪..."
         
-        # 确保智能体有位置信息
         self._ensure_agent_positions()
-        
-        # 初始化智能体状态管理器
         self.agent_manager.initialize_agents(self.agents, self.scene.get("structure", {}))
         
         return {
@@ -72,31 +70,38 @@ class Simulator:
             agent.setdefault("mood", "neutral")
             agent.setdefault("inventory", [])
     
+   # --- 核心修改：模拟单步的逻辑 ---
     def simulate_step(self) -> Dict:
-        """模拟单步"""
+        """模拟单步，现在由导演编排"""
         if self.current_step >= self.max_steps:
             return {"status": "completed", "reason": "达到最大步数"}
+
+        # 1. 检查当前动作计划是否已执行完毕
+        if self.agent_manager.is_plan_finished():
+            # 2. 如果完毕，让导演生成新的计划
+            context = self._prepare_director_context()
+            # --- 修改：解构返回值，获取摘要和计划 ---
+            narrative, action_plan = self.story_director.generate_step_plan(context)
+            
+            # 存储摘要，以便在计划的每一步都能使用
+            self.current_narrative_summary = narrative
+            self.agent_manager.set_action_plan(action_plan)
+            
+            if not action_plan:
+                return {"status": "error", "reason": "导演未能生成有效的动作计划"}
+
+        # 3. 执行计划中的下一个动作
+        agent_update = self.agent_manager.update_agents_with_plan(self._prepare_director_context())
         
-        agent_ids = list(self.agent_manager.agents.keys())
-        if not agent_ids:
-            return {"status": "error", "reason": "没有智能体"}
-        
-        selected_agent_id = agent_ids[self.current_step % len(agent_ids)]
-        
-        context = {
-            "scene_description": self.scene.get("description", ""),
-            "scene_structure": self.scene.get("structure", {}),
-            "current_step": self.current_step,
-            "available_items": self._get_available_items(),
-            "other_agents": self.agent_manager.get_agent_states()
-        }
-        
-        agent_update = self.agent_manager.update_single_agent(selected_agent_id, context)
-        triggered_event = self._check_story_events(selected_agent_id, agent_update)
-        
-        # 更新原始智能体数据中的位置
-        self._update_agent_data(selected_agent_id, agent_update)
-        
+        # 4. 更新原始智能体数据
+        if agent_update.get("status") == "executed":
+            self._update_agent_data(agent_update["agent_id"], agent_update)
+
+        # 5. 检查故事事件（如果计划执行完毕）
+        triggered_event = None
+        if self.agent_manager.is_plan_finished():
+            triggered_event = self._check_story_events(agent_update.get("agent_id"), agent_update)
+
         event_record = {
             "step": self.current_step,
             "agent_update": agent_update,
@@ -104,8 +109,10 @@ class Simulator:
             "timestamp": time.time()
         }
         self.event_history.append(event_record)
-        
-        self.current_step += 1
+
+        # 只有当一个完整计划执行完毕后，步数才增加
+        if self.agent_manager.is_plan_finished():
+            self.current_step += 1
         
         return {
             "status": "running",
@@ -114,9 +121,21 @@ class Simulator:
             "triggered_event": triggered_event,
             "all_agent_states": self.agent_manager.get_agent_states(),
             "scene_data": {
-                "agents": self.agents,  # 包含更新后的智能体数据
+                "agents": self.agents,
                 "scene_structure": self.scene.get("structure", {})
-            }
+            },
+            "plan_progress": agent_update.get("plan_progress", "N/A"),
+            "narrative_summary": self.current_narrative_summary # --- 新增：返回当前剧情摘要 ---
+        }
+
+    def _prepare_director_context(self) -> Dict:
+        """为导演准备所需的全局上下文"""
+        return {
+            "scene_description": self.scene.get("description", ""),
+            "scene_structure": self.scene.get("structure", {}),
+            "current_step": self.current_step,
+            "other_agents": self.agent_manager.get_agent_states(), # 提供所有agent的详细状态
+            "story_outline": self.story_outline
         }
     
     def _update_agent_data(self, agent_id: int, agent_update: Dict):
@@ -189,19 +208,29 @@ class Simulator:
     
     def get_current_state(self) -> Dict:
         """获取当前模拟状态"""
-        return {
-            "current_step": self.current_step,
-            "max_steps": self.max_steps,
-            "story_outline": self.story_outline,
-            "agent_states": self.agent_manager.get_agent_states(),
-            "event_history": self.event_history[-10:],
-            "progress_percentage": (self.current_step / self.max_steps) * 100,
-            "scene_data": {
-                "agents": self.agents,  # 包含最新的智能体数据
-                "scene_structure": self.scene.get("structure", {})
+        try:
+            return {
+                "current_step": getattr(self, 'current_step', 0),
+                "max_steps": getattr(self, 'max_steps', 100),
+                "story_outline": getattr(self, 'story_outline', {}),
+                "agent_states": self.agent_manager.get_agent_states() if hasattr(self, 'agent_manager') else [],
+                "event_history": getattr(self, 'event_history', [])[-10:],
+                "progress_percentage": (getattr(self, 'current_step', 0) / getattr(self, 'max_steps', 100)) * 100,
+                "scene_data": {
+                    "agents": getattr(self, 'agents', []),
+                    "scene_structure": getattr(self, 'scene', {}).get("structure", {})
+                }
             }
-        }
-    
+        except Exception as e:
+            print(f"获取当前状态失败: {e}")
+            return {
+                "error": str(e),
+                "current_step": 0,
+                "max_steps": 100,
+                "agent_states": [],
+                "scene_data": {"agents": [], "scene_structure": {}}
+            }
+
     def get_map_data(self) -> Dict:
         """获取地图数据用于渲染"""
         return {

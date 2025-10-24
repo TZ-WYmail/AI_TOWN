@@ -136,32 +136,83 @@ def index():
 @app.route('/generate', methods=['POST'])
 def generate():
     """生成新的模拟"""
-    config = {
-        "scene_description": request.form.get('scene_description', DEFAULT_CONFIG["scene_description"]),
-        "agent_count": int(request.form.get('agent_count', DEFAULT_CONFIG["agent_count"])),
-        "auto_play": request.form.get('auto_play') == 'on',
-        "show_bubbles": request.form.get('show_bubbles') == 'on',
-        "animation_speed": int(request.form.get('animation_speed', DEFAULT_CONFIG["animation_speed"])),
-        "use_llm": request.form.get('use_llm') == 'on',
-        "max_steps": int(request.form.get('max_steps', 100))
-    }
-    
-    story_name = get_story_name_from_description(config["scene_description"])
-    save_story_config(story_name, config)
-    
-    # 生成完整场景数据
-    scene_data = scene_generator.generate_comprehensive_scene(
-        config["scene_description"], 
-        config["agent_count"], 
-        config["use_llm"],
-        config["max_steps"]
-    )
-    
-    save_story_data(story_name, scene_data)
-    
-    return render_template('simulation.html', data=scene_data, story_name=story_name)
+    try:
+        # 支持JSON和表单数据两种格式
+        if request.is_json:
+            data = request.get_json()
+            config = {
+                "scene_description": data.get('scene_description', DEFAULT_CONFIG["scene_description"]),
+                "agent_count": int(data.get('agent_count', DEFAULT_CONFIG["agent_count"])),
+                "auto_play": data.get('auto_play', False),
+                "show_bubbles": data.get('show_bubbles', False),
+                "animation_speed": int(data.get('animation_speed', DEFAULT_CONFIG["animation_speed"])),
+                "use_llm": data.get('use_llm', False),
+                "max_steps": int(data.get('max_steps', 100))
+            }
+        else:
+            # 传统表单数据
+            config = {
+                "scene_description": request.form.get('scene_description', DEFAULT_CONFIG["scene_description"]),
+                "agent_count": int(request.form.get('agent_count', DEFAULT_CONFIG["agent_count"])),
+                "auto_play": request.form.get('auto_play') == 'on',
+                "show_bubbles": request.form.get('show_bubbles') == 'on',
+                "animation_speed": int(request.form.get('animation_speed', DEFAULT_CONFIG["animation_speed"])),
+                "use_llm": request.form.get('use_llm') == 'on',
+                "max_steps": int(request.form.get('max_steps', 100))
+            }
+        
+        story_name = get_story_name_from_description(config["scene_description"])
+        save_story_config(story_name, config)
+        
+        # 生成完整场景数据
+        scene_data = scene_generator.generate_comprehensive_scene(
+            config["scene_description"], 
+            config["agent_count"], 
+            config["use_llm"],
+            config["max_steps"]
+        )
+        
+        save_story_data(story_name, scene_data)
+        
+        # 根据请求类型返回不同响应
+        if request.is_json:
+            return jsonify({
+                "status": "success", 
+                "story_name": story_name,
+                "redirect_url": f"/simulation/{story_name}"
+            })
+        else:
+            return render_template('simulation.html', data=scene_data, story_name=story_name)
+            
+    except Exception as e:
+        print(f"生成模拟时出错: {e}")
+        if request.is_json:
+            return jsonify({"status": "error", "message": str(e)}), 500
+        else:
+            return f"生成失败: {str(e)}", 500
 
+# 添加新的路由处理带参数的模拟页面
+@app.route('/simulation/<story_name>')
+def simulation_page(story_name):
+    """模拟页面 - 支持URL参数"""
+    config = load_story_config(story_name)
+    if config:
+        data = load_story_data(story_name)
+        if data:
+            return render_template('simulation.html', data=data, story_name=story_name)
+    return "故事不存在", 404
 
+# 保持向后兼容的路由
+@app.route('/simulation')
+def simulation_default():
+    """默认模拟页面"""
+    # 如果有查询参数，尝试加载
+    story_name = request.args.get('story_name')
+    if story_name:
+        return simulation_page(story_name)
+    
+    # 否则重定向到首页
+    return redirect('/')
 
 @app.route('/load/<story_name>')
 def load_story(story_name):
@@ -184,6 +235,24 @@ def delete_story_route(story_name):
 def get_stories():
     """API: 获取所有故事列表"""
     return jsonify(list_stories())
+
+@app.before_request
+def log_request_info():
+    """记录请求信息"""
+    print(f"请求方法: {request.method}")
+    print(f"请求路径: {request.path}")
+    print(f"请求头: {dict(request.headers)}")
+    if request.is_json:
+        print(f"请求数据: {request.get_json()}")
+    elif request.form:
+        print(f"表单数据: {dict(request.form)}")
+
+@app.after_request
+def log_response_info(response):
+    """记录响应信息"""
+    print(f"响应状态: {response.status}")
+    print(f"响应头: {dict(response.headers)}")
+    return response
 
 @app.route('/api/simulate', methods=['POST'])
 def api_simulate():
@@ -245,38 +314,95 @@ def update_llm_config():
 @app.route('/api/simulate_step', methods=['POST'])
 def simulate_step():
     """模拟单步"""
-    data = request.json
-    story_name = data.get("story_name")
-    
-    if not story_name:
-        return jsonify({"status": "error", "message": "缺少故事名"}), 400
-    
-    story_data = load_story_data(story_name)
-    if not story_data:
-        return jsonify({"status": "error", "message": "故事不存在"}), 404
-    
-    # 使用单例模式获取模拟器实例
-    simulator = Simulator.get_instance(story_name)
-    
-    # 如果还没有初始化，先初始化
-    if not hasattr(simulator, 'current_step') or simulator.current_step == 0:
-        story_data["story_name"] = story_name  # 添加故事名
-        simulator.initialize_simulation(story_data)
-    
-    step_result = simulator.simulate_step()
-    
-    # 保存更新后的数据
-    story_data['agent_states'] = simulator.agent_manager.get_agent_states()
-    story_data['current_step'] = simulator.current_step
-    story_data['agents'] = simulator.agents  # 保存更新后的智能体数据
-    save_story_data(story_name, story_data)
-    
-    return jsonify({
-        "status": "success",
-        "data": step_result,
-        "current_state": simulator.get_current_state(),
-        "map_data": simulator.get_map_data()  # 添加地图数据
-    })
+    try:
+        data = request.json
+        if not data:
+            return jsonify({
+                "status": "error", 
+                "message": "请求数据为空"
+            }), 400
+            
+        story_name = data.get("story_name")
+        if not story_name:
+            return jsonify({
+                "status": "error", 
+                "message": "缺少故事名参数"
+            }), 400
+        
+        # 处理只获取状态的请求
+        if data.get("get_state_only"):
+            simulator = Simulator.get_instance(story_name)
+            if hasattr(simulator, 'current_step'):
+                return jsonify({
+                    "status": "success",
+                    "current_state": simulator.get_current_state(),
+                    "map_data": simulator.get_map_data()
+                })
+            else:
+                return jsonify({
+                    "status": "error", 
+                    "message": "模拟器未初始化"
+                }), 400
+
+        # 加载故事数据
+        story_data = load_story_data(story_name)
+        if not story_data:
+            return jsonify({
+                "status": "error", 
+                "message": f"故事 '{story_name}' 不存在"
+            }), 404
+        
+        # 获取或创建模拟器实例
+        simulator = Simulator.get_instance(story_name)
+        
+        # 初始化模拟器（如果需要）
+        if not hasattr(simulator, 'current_step') or simulator.current_step == 0:
+            story_data["story_name"] = story_name
+            init_result = simulator.initialize_simulation(story_data)
+            if init_result.get("status") != "initialized":
+                return jsonify({
+                    "status": "error", 
+                    "message": "模拟器初始化失败"
+                }), 500
+        
+        # 执行模拟步骤
+        step_result = simulator.simulate_step()
+        
+        # 保存更新后的数据
+        try:
+            story_data['agent_states'] = simulator.agent_manager.get_agent_states()
+            story_data['current_step'] = simulator.current_step
+            story_data['agents'] = simulator.agents
+            save_story_data(story_name, story_data)
+        except Exception as save_error:
+            print(f"保存故事数据失败: {save_error}")
+            # 即使保存失败，也继续返回结果
+        
+        # 获取剧情摘要
+        narrative_summary = step_result.get("narrative_summary", "导演正在构思...")
+        
+        return jsonify({
+            "status": "success",
+            "data": {
+                **step_result,
+                "narrative_summary": narrative_summary
+            },
+            "current_state": simulator.get_current_state(),
+            "map_data": simulator.get_map_data()
+        })
+        
+    except Exception as e:
+        # 详细的错误日志
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"模拟步骤执行错误: {error_details}")
+        
+        return jsonify({
+            "status": "error", 
+            "message": f"服务器内部错误: {str(e)}",
+            "details": error_details if app.debug else None
+        }), 500
+
 
 
 

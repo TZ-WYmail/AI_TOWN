@@ -52,11 +52,11 @@ class AgentStateManager:
         self.llm_manager = LLMManager()
         self.agents: Dict[int, AgentState] = {}
         self.current_step = 0
+        self.current_action_plan: List[Dict] = [] # 新增：存储当前步骤的动作计划
+        self.current_action_index = 0 # 新增：当前执行到动作计划的第几步
         
     def initialize_agents(self, agent_configs: List[Dict], scene_structure: Dict):
-        """初始化智能体"""
         self.agents.clear()
-        
         for i, config in enumerate(agent_configs):
             agent = AgentState(
                 agent_id=i,
@@ -64,48 +64,58 @@ class AgentStateManager:
                 personality=config["personality"],
                 goal=config["goal"]
             )
-            
-            # 根据场景结构初始化位置
             rooms = scene_structure["rooms"]
             if rooms:
-                # 随机选择一个房间作为初始位置
                 initial_room = random.choice(rooms)
                 agent.current_room = initial_room["id"]
                 agent.position["x"] = initial_room["x"] + initial_room["width"] // 2
                 agent.position["y"] = initial_room["y"] + initial_room["height"] // 2
-            
             self.agents[i] = agent
-    
-    def update_single_agent(self, agent_id: int, context: Dict) -> Dict:
-        """更新单个智能体状态"""
+
+    # --- 修改：不再由单个Agent决定行动，而是执行一个预定的计划 ---
+    def update_agents_with_plan(self, context: Dict) -> Dict:
+        """根据动作计划更新所有智能体"""
+        if not self.current_action_plan or self.current_action_index >= len(self.current_action_plan):
+            return {"status": "no_plan", "reason": "没有可执行的动作计划或计划已执行完毕"}
+
+        action_to_execute = self.current_action_plan[self.current_action_index]
+        agent_id = action_to_execute.get("agent_id")
         agent = self.agents.get(agent_id)
+
         if not agent:
-            return {}
-        
-        if agent.action_cooldown > 0:
-            agent.action_cooldown -= 1
-            return {"agent_id": agent_id, "action": "cooldown", "reason": "动作冷却中"}
-        
-        # 使用LLM决定行动
-        action = self._generate_agent_action(agent, context)
-        
-        # 执行行动
-        result = self._execute_action(agent, action, context)
-        
-        # 更新状态
-        self._update_agent_state(agent, action, result)
-        
+            return {"status": "error", "reason": f"未找到ID为 {agent_id} 的智能体"}
+
+        # 执行动作
+        result = self._execute_action(agent, action_to_execute, context)
+        self._update_agent_state(agent, action_to_execute, result)
+
+        # 移动到计划中的下一个动作
+        self.current_action_index += 1
+
         return {
+            "status": "executed",
             "agent_id": agent_id,
-            "action": action,
+            "action": action_to_execute,
             "result": result,
             "position": agent.position.copy(),
             "current_room": agent.current_room,
             "mood": agent.mood,
-            "energy": agent.energy
+            "energy": agent.energy,
+            "plan_progress": f"{self.current_action_index}/{len(self.current_action_plan)}"
         }
-    
+
+    def set_action_plan(self, plan: List[Dict]):
+        """设置新的动作计划"""
+        self.current_action_plan = plan
+        self.current_action_index = 0
+
+    def is_plan_finished(self) -> bool:
+        """检查当前动作计划是否已执行完毕"""
+        return not self.current_action_plan or self.current_action_index >= len(self.current_action_plan)
+
+    # --- 以下方法大部分保持不变，但 _generate_agent_action 不再被主流程调用 ---
     def _generate_agent_action(self, agent: AgentState, context: Dict) -> Dict:
+        """(已弃用) 使用LLM生成智能体行动"""
         """使用LLM生成智能体行动"""
         other_agents = [a for a in self.agents.values() if a.id != agent.id]
         
@@ -146,7 +156,7 @@ class AgentStateManager:
             print(f"LLM生成行动失败: {e}")
         
         return self._generate_default_action(agent)
-    
+
     def _generate_default_action(self, agent: AgentState) -> Dict:
         """生成默认行动"""
         actions = ["move", "investigate", "rest"]
@@ -175,7 +185,6 @@ class AgentStateManager:
             new_x = dest.get("x", agent.position["x"])
             new_y = dest.get("y", agent.position["y"])
             
-            # 检查是否在房间范围内
             current_room_data = self._get_room_data(agent.current_room, context)
             if current_room_data:
                 if self._is_position_in_room(new_x, new_y, current_room_data):
@@ -192,7 +201,6 @@ class AgentStateManager:
                 if target_agent and target_agent.current_room == agent.current_room:
                     dialogue = action.get("dialogue", f"{agent.name}: 你好")
                     result["details"] = f"对{target}说：{dialogue}"
-                    # 更新关系
                     agent.update_relationship(target_agent.id, 0.1)
                 else:
                     result["success"] = False
@@ -213,26 +221,20 @@ class AgentStateManager:
         return result
     
     def _update_agent_state(self, agent: AgentState, action: Dict, result: Dict):
-        """更新智能体状态"""
-        # 更新能量
         if action.get("action_type") in ["move", "investigate"]:
             agent.energy = max(0, agent.energy - 5)
         
-        # 更新心情
         if result["success"]:
             agent.mood = "happy"
         else:
             agent.mood = "frustrated"
         
-        # 设置动作冷却
         agent.action_cooldown = 2
         
-        # 添加记忆
         memory_content = f"{action.get('action_type', '行动')}: {result.get('details', '')}"
         agent.add_memory(memory_content)
     
     def _get_room_data(self, room_id: str, context: Dict) -> Optional[Dict]:
-        """获取房间数据"""
         scene_structure = context.get("scene_structure", {})
         rooms = scene_structure.get("rooms", [])
         for room in rooms:
@@ -241,7 +243,6 @@ class AgentStateManager:
         return None
     
     def _is_position_in_room(self, x: int, y: int, room: Dict) -> bool:
-        """检查位置是否在房间内"""
         room_x = room.get("x", 0)
         room_y = room.get("y", 0)
         room_width = room.get("width", 100)
@@ -251,14 +252,12 @@ class AgentStateManager:
                 room_y <= y <= room_y + room_height)
     
     def _find_agent_by_name(self, name: str) -> Optional[AgentState]:
-        """根据名字查找智能体"""
         for agent in self.agents.values():
             if agent.name == name:
                 return agent
         return None
     
     def get_agent_states(self) -> List[Dict]:
-        """获取所有智能体状态"""
         return [
             {
                 "id": agent.id,
@@ -268,7 +267,9 @@ class AgentStateManager:
                 "mood": agent.mood,
                 "energy": agent.energy,
                 "inventory": agent.inventory.copy(),
-                "current_action": agent.current_action
+                "current_action": agent.current_action,
+                "memory": agent.memory[-5:], # 返回最近5条记忆
+                "relationships": agent.relationships
             }
             for agent in self.agents.values()
         ]

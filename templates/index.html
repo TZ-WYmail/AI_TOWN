@@ -558,103 +558,354 @@
     
     <div id="notification" class="notification"></div>
     
-    <script>
-        // 滑块值更新
-        document.getElementById('agent_count').addEventListener('input', function() {
-            document.getElementById('agent_count_value').textContent = this.value;
-        });
+   <script>
+        // ==================== 工具函数 ====================
         
-        document.getElementById('animation_speed').addEventListener('input', function() {
-            document.getElementById('animation_speed_value').textContent = this.value;
-        });
-        
-        // 主标签页切换
-        function showMainTab(tabName) {
-            // 隐藏所有标签内容
-            const tabContents = document.querySelectorAll('.tab-content');
-            tabContents.forEach(tab => tab.classList.remove('active'));
-            
-            // 移除所有标签的active类
-            const tabs = document.querySelectorAll('.main-tab');
-            tabs.forEach(tab => tab.classList.remove('active'));
-            
-            // 显示选中的标签内容
-            document.getElementById(tabName).classList.add('active');
-            
-            // 添加active类到选中的标签
-            event.target.classList.add('active');
-        }
-        
-        // 加载故事
-        function loadStory(storyName) {
-            window.location.href = `/load/${storyName}`;
-        }
-        
-        // 删除故事
-        function deleteStory(storyName) {
-            if (confirm(`确定要删除故事 "${storyName}" 吗？此操作不可恢复。`)) {
-                fetch(`/delete/${storyName}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        showNotification('故事已删除');
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 1000);
-                    } else {
-                        showNotification('删除失败', 'error');
-                    }
-                })
-                .catch(error => {
-                    showNotification('删除失败', 'error');
-                });
+        // 安全的事件绑定函数
+        function safeBindEvent(selector, eventType, handler) {
+            try {
+                const element = document.querySelector(selector);
+                if (element) {
+                    element.addEventListener(eventType, handler);
+                    console.log(`成功绑定事件: ${selector}.${eventType}`);
+                    return true;
+                } else {
+                    console.error(`元素未找到: ${selector}`);
+                    return false;
+                }
+            } catch (error) {
+                console.error(`事件绑定失败: ${selector}.${eventType}`, error);
+                return false;
             }
         }
-        // 在index.html的JavaScript部分添加
-        document.getElementById('use_llm').addEventListener('change', function() {
-            const modelSelection = document.getElementById('llm_model_selection');
-            if (this.checked) {
-                modelSelection.style.display = 'block';
-            } else {
-                modelSelection.style.display = 'none';
-            }
-        });
-
         
         // 通知函数
         function showNotification(message, type = 'success') {
             const notification = document.getElementById('notification');
-            notification.textContent = message;
-            notification.style.background = type === 'success' ? 
-                'linear-gradient(45deg, rgba(0, 255, 136, 0.9), rgba(0, 255, 255, 0.9))' : 
-                'linear-gradient(45deg, rgba(255, 0, 0, 0.9), rgba(255, 100, 0, 0.9))';
-            notification.classList.add('show');
-            
-            setTimeout(() => {
-                notification.classList.remove('show');
-            }, 3000);
+            if (notification) {
+                notification.textContent = message;
+                notification.style.background = type === 'success' ? 
+                    'linear-gradient(45deg, rgba(0, 255, 136, 0.9), rgba(0, 255, 255, 0.9))' : 
+                    'linear-gradient(45deg, rgba(255, 0, 0, 0.9), rgba(255, 100, 0, 0.9))';
+                notification.classList.add('show');
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
+            } else {
+                console.error('通知元素未找到');
+            }
         }
         
-        // 表单提交通知
-        document.querySelector('form').addEventListener('submit', function() {
-            showNotification('系统配置已保存，正在初始化量子模拟...');
-        });
+        // 主标签页切换函数
+        function showMainTab(tabName) {
+            try {
+                // 隐藏所有标签内容
+                const tabContents = document.querySelectorAll('.tab-content');
+                tabContents.forEach(tab => tab.classList.remove('active'));
+                
+                // 移除所有标签的active类
+                const tabs = document.querySelectorAll('.main-tab');
+                tabs.forEach(tab => tab.classList.remove('active'));
+                
+                // 显示选中的标签内容
+                const selectedTab = document.getElementById(tabName);
+                if (selectedTab) {
+                    selectedTab.classList.add('active');
+                } else {
+                    console.error(`标签内容未找到: ${tabName}`);
+                }
+                
+                // 添加active类到选中的标签
+                const activeTab = document.querySelector(`.main-tab[onclick*="${tabName}"]`);
+                if (activeTab) {
+                    activeTab.classList.add('active');
+                }
+            } catch (error) {
+                console.error('标签页切换失败:', error);
+            }
+        }
         
-        // 添加一些科幻音效的视觉反馈
-        document.querySelectorAll('input, textarea, select').forEach(element => {
-            element.addEventListener('focus', function() {
-                this.style.boxShadow = '0 0 20px rgba(0, 255, 255, 0.8)';
+        // 加载故事函数
+        function loadStory(storyName) {
+            try {
+                window.location.href = `/load/${storyName}`;
+            } catch (error) {
+                console.error('加载故事失败:', error);
+                showNotification('加载失败', 'error');
+            }
+        }
+        
+        // 删除故事函数
+        function deleteStory(storyName) {
+            try {
+                if (confirm(`确定要删除故事 "${storyName}" 吗？此操作不可恢复。`)) {
+                    fetch(`/delete/${storyName}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showNotification('故事已删除');
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1000);
+                        } else {
+                            showNotification('删除失败', 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('删除故事失败:', error);
+                        showNotification('删除失败', 'error');
+                    });
+                }
+            } catch (error) {
+                console.error('删除故事失败:', error);
+                showNotification('删除失败', 'error');
+            }
+        }
+        
+        // ==================== 页面初始化函数 ====================
+        
+        // 页面初始化函数
+        function initializePage() {
+            console.log('页面初始化开始...');
+            
+            // 检查必要的元素
+            const requiredElements = [
+                '#use_llm',
+                '#llm_model_selection',
+                '#agent_count',
+                '#animation_speed',
+                'form'
+            ];
+            
+            const missingElements = requiredElements.filter(selector => 
+                !document.querySelector(selector)
+            );
+            
+            if (missingElements.length > 0) {
+                console.error('缺少必要元素:', missingElements);
+                showNotification('页面初始化失败，请刷新页面重试', 'error');
+                return false;
+            }
+            
+            // 绑定事件
+            bindEvents();
+            
+            // 初始化UI状态
+            initializeUI();
+            
+            console.log('页面初始化完成');
+            return true;
+        }
+        
+        // 绑定所有事件
+        function bindEvents() {
+            console.log('开始绑定事件...');
+            
+            // LLM复选框事件
+            safeBindEvent('#use_llm', 'change', function() {
+                const modelSelection = document.getElementById('llm_model_selection');
+                if (modelSelection) {
+                    modelSelection.style.display = this.checked ? 'block' : 'none';
+                }
             });
             
-            element.addEventListener('blur', function() {
-                this.style.boxShadow = 'none';
+            // 滑块事件
+            safeBindEvent('#agent_count', 'input', function() {
+                const valueElement = document.getElementById('agent_count_value');
+                if (valueElement) {
+                    valueElement.textContent = this.value;
+                }
             });
+            
+            safeBindEvent('#animation_speed', 'input', function() {
+                const valueElement = document.getElementById('animation_speed_value');
+                if (valueElement) {
+                    valueElement.textContent = this.value;
+                }
+            });
+            
+            // 表单提交事件
+            safeBindEvent('form', 'submit', function(e) {
+                e.preventDefault();
+                handleFormSubmit();
+            });
+            
+            // 标签页切换事件
+            document.querySelectorAll('.main-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const onclickAttr = this.getAttribute('onclick');
+                    if (onclickAttr) {
+                        const match = onclickAttr.match(/'([^']+)'/);
+                        if (match) {
+                            showMainTab(match[1]);
+                        }
+                    }
+                });
+            });
+            
+            console.log('事件绑定完成');
+        }
+        
+        // 处理表单提交
+        // 处理表单提交 - 修改为处理HTML响应
+        // 在 index.html 中修改 handleFormSubmit 函数
+
+function handleFormSubmit() {
+    console.log('处理表单提交...');
+    
+    showNotification('系统配置已保存，正在初始化量子模拟...');
+    
+    try {
+        const form = document.querySelector('form');
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData);
+        
+        // 添加复选框的正确处理
+        data.auto_play = document.getElementById('auto_play').checked;
+        data.show_bubbles = document.getElementById('show_bubbles').checked;
+        data.use_llm = document.getElementById('use_llm').checked;
+        
+        fetch('/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            console.log('响应状态:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return response.json();
+        })
+        .then(data => {
+            console.log('服务器返回数据:', data);
+            
+            if (data.status === 'success') {
+                showNotification('模拟初始化成功！');
+                // 使用返回的重定向URL
+                setTimeout(() => {
+                    window.location.href = data.redirect_url || `/simulation/${data.story_name}`;
+                }, 1500);
+            } else {
+                showNotification('初始化失败: ' + (data.message || '未知错误'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('表单提交失败:', error);
+            
+            // 如果AJAX失败，回退到传统表单提交
+            console.log('回退到传统表单提交');
+            showNotification('正在使用传统方式提交...', 'info');
+            
+            // 创建一个临时表单进行提交
+            const tempForm = document.createElement('form');
+            tempForm.method = 'POST';
+            tempForm.action = '/generate';
+            tempForm.style.display = 'none';
+            
+            // 复制所有表单数据
+            for (const [key, value] of formData.entries()) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = value;
+                tempForm.appendChild(input);
+            }
+            
+            document.body.appendChild(tempForm);
+            tempForm.submit();
         });
+    } catch (error) {
+        console.error('表单处理失败:', error);
+        showNotification('表单处理失败: ' + error.message, 'error');
+    }
+}
+
+
+
+        
+        // 初始化UI状态
+        function initializeUI() {
+            console.log('初始化UI状态...');
+            
+            try {
+                // 设置初始状态
+                const useLLM = document.getElementById('use_llm');
+                const modelSelection = document.getElementById('llm_model_selection');
+                
+                if (useLLM && modelSelection) {
+                    modelSelection.style.display = useLLM.checked ? 'block' : 'none';
+                }
+                
+                // 添加输入框焦点效果
+                document.querySelectorAll('input, textarea, select').forEach(element => {
+                    element.addEventListener('focus', function() {
+                        this.style.boxShadow = '0 0 20px rgba(0, 255, 255, 0.8)';
+                    });
+                    
+                    element.addEventListener('blur', function() {
+                        this.style.boxShadow = 'none';
+                    });
+                });
+                
+                console.log('UI状态初始化完成');
+            } catch (error) {
+                console.error('UI状态初始化失败:', error);
+            }
+        }
+        
+        // ==================== 全局错误处理 ====================
+        
+        // 全局错误处理
+        window.addEventListener('error', function(event) {
+            console.error('全局错误:', event.error);
+            showNotification('系统错误: ' + event.error.message, 'error');
+        });
+        
+        // 未捕获的Promise拒绝处理
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('未处理的Promise拒绝:', event.reason);
+            showNotification('系统错误: ' + event.reason, 'error');
+        });
+        
+        // ==================== 页面加载完成后初始化 ====================
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM内容已加载，开始初始化...');
+            
+            // 添加一个小延迟确保所有资源都已加载
+            setTimeout(() => {
+                if (!initializePage()) {
+                    console.error('页面初始化失败');
+                    showNotification('页面初始化失败，请刷新页面重试', 'error');
+                } else {
+                    console.log('页面初始化成功');
+                    showNotification('AI小镇控制中心已就绪', 'success');
+                }
+            }, 100);
+        });
+        
+        // ==================== 调试信息 ====================
+        
+        // 开发环境下显示调试信息
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            console.log('调试模式已启用');
+            console.log('当前页面:', window.location.href);
+            console.log('用户代理:', navigator.userAgent);
+        }
+        
     </script>
 </body>
 </html>
